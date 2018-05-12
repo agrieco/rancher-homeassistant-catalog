@@ -1,7 +1,13 @@
 version: '2'
 services:
+{{- if ne .Values.db_link ""}}
+    external_links:
+      - ${db_link}:db
+{{- else}}
+    links:
+      - db:db
   db:
-    image: mysql:5.7.22
+    image: mysql:8.0
     volumes:
       - /var/lib/docker/volumes/ha_mysql:/var/lib/mysql
     {{- if (.Values.MYSQL_PORT) }}
@@ -14,14 +20,22 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+{{- end}}
+  homeassistant-lb:
+    image: rancher/lb-service-haproxy:v0.9.1
+    ports:
+    - ${MYSQL_PORT}:3306/tcp
+    - ${HA_PORT}:8123/tcp
+    labels:
+      io.rancher.container.agent.role: environmentAdmin,agent
+      io.rancher.container.agent_service.drain_provider: 'true'
+      io.rancher.container.create_agent: 'true'
   homeassistant:
     depends_on:
       - db
     image: homeassistant/home-assistant:0.68.1
     volumes:
       - /var/lib/docker/volumes/ha_config:/config
-    ports:
-      - ${HA_PORT}:8123
     {{- if or (.Values.DEV_ZWAVE) (.Values.DEV_RFXCOM) }}
     devices:
       {{- if (.Values.DEV_ZWAVE) }}
